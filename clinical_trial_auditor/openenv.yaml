@@ -1,0 +1,139 @@
+name: clinical_trial_auditor
+version: "1.0.0"
+description: >
+  An OpenEnv environment where AI agents audit clinical trial protocols for
+  compliance issues, missing sections, statistical errors, and regulatory
+  violations. Simulates the real-world task performed by regulatory affairs
+  specialists and clinical research associates.
+
+author: Aditya Satapathy
+license: MIT
+
+environment:
+  type: text
+  framework: fastapi
+  port: 7860
+
+tasks:
+  - id: section_completeness
+    name: Section Completeness Check
+    difficulty: easy
+    description: >
+      Identify missing or incomplete required sections in a Phase III
+      oncology clinical trial protocol per ICH-GCP E6(R2) guidelines.
+    max_steps: 10
+
+  - id: eligibility_validation
+    name: Eligibility Criteria Validation
+    difficulty: medium
+    description: >
+      Analyze inclusion/exclusion criteria of a cardiovascular outcomes
+      trial for logical inconsistencies, safety gaps, and regulatory concerns.
+    max_steps: 12
+
+  - id: full_protocol_audit
+    name: Full Protocol Audit
+    difficulty: hard
+    description: >
+      Perform a comprehensive audit of a pediatric gene therapy protocol
+      covering statistical methodology, safety monitoring, regulatory
+      compliance, and cross-section consistency.
+    max_steps: 15
+
+action_space:
+  type: object
+  properties:
+    action_type:
+      type: string
+      enum: [identify_issue, request_section, submit_report]
+      description: Type of audit action
+    section:
+      type: string
+      description: Protocol section reference
+    issue_type:
+      type: string
+      enum:
+        - missing_section
+        - logical_inconsistency
+        - statistical_error
+        - safety_gap
+        - regulatory_violation
+        - endpoint_issue
+        - consent_issue
+      description: Category of the identified issue
+    severity:
+      type: string
+      enum: [critical, major, minor]
+      description: Issue severity classification
+    description:
+      type: string
+      description: Detailed description of finding or request
+    recommendation:
+      type: string
+      description: Suggested corrective action
+
+observation_space:
+  type: object
+  properties:
+    protocol_id:
+      type: string
+      description: Unique identifier for the current protocol
+    task_id:
+      type: string
+      description: Current task identifier
+    task_description:
+      type: string
+      description: What the agent needs to do
+    protocol_text:
+      type: string
+      description: The clinical trial protocol text to audit
+    sections_available:
+      type: array
+      items:
+        type: string
+      description: Protocol sections available for detailed view
+    identified_issues:
+      type: array
+      description: Issues identified so far in this episode
+    feedback:
+      type: string
+      description: Environment feedback on last action
+    step_number:
+      type: integer
+      description: Current step in the episode
+    max_steps:
+      type: integer
+      description: Maximum steps allowed
+    done:
+      type: boolean
+      description: Whether the episode is complete
+    reward:
+      type: number
+      description: Step reward
+
+reward:
+  type: composite
+  components:
+    recall:
+      weight: 0.40
+      description: Fraction of ground truth issues correctly identified
+    precision:
+      weight: 0.25
+      description: Fraction of agent findings that are true positives
+    severity_accuracy:
+      weight: 0.15
+      description: Accuracy of severity classification
+    efficiency:
+      weight: 0.10
+      description: Steps used relative to optimal
+    coverage_quality:
+      weight: 0.10
+      description: Match quality of identified issues
+
+tags:
+  - openenv
+  - clinical-trials
+  - protocol-audit
+  - healthcare
+  - compliance
+  - regulatory
