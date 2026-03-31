@@ -1,3 +1,15 @@
+---
+title: Clinical Trial Protocol Auditor
+emoji: 🏥
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+tags:
+  - openenv
+---
 <div align="center">
 
 # 🏥 Clinical Trial Protocol Auditor
