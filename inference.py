@@ -30,7 +30,7 @@ MODEL_NAME = os.getenv("MODEL_NAME") or "meta-llama/Llama-3.1-8B-Instruct"
 # Environment URL — update to your HF Space URL after deployment
 ENV_BASE_URL = os.getenv("ENV_BASE_URL") or "http://localhost:7860"
 
-MAX_STEPS = 10
+MAX_STEPS = 15
 TEMPERATURE = 0.2
 MAX_TOKENS = 1024
 
@@ -63,21 +63,24 @@ SYSTEM_PROMPT = textwrap.dedent("""
 
     RESPOND WITH ONLY A VALID JSON OBJECT. No explanations, no markdown, no extra text.
 
+    CRITICAL RULES:
+    1. NEVER repeat a finding you already made. Check the "Issues identified so far" list carefully.
+       If you already flagged something about a topic, move on to a DIFFERENT issue.
+    2. Look for DIFFERENT types of issues: missing sections, statistical flaws, logical
+       contradictions, safety gaps, regulatory violations, endpoint problems, consent issues.
+    3. Each finding must be about a DISTINCT problem. Vary the section and issue_type.
+    4. After finding 3-5 unique issues, use "request_section" to look for more problems
+       in specific sections you haven't examined yet.
+    5. When you have found all issues you can identify, use "submit_report" to finalize.
+       Do NOT keep submitting weak or repeated findings.
+
     Strategy:
     1. Read the protocol text carefully
-    2. Identify issues one at a time using "identify_issue" actions
-    3. Use "request_section" if you need to see a specific section in more detail
-    4. When you've found all issues, use "submit_report" to finalize
-
-    Focus on:
-    - Missing or incomplete required sections (per ICH-GCP)
-    - Logical inconsistencies in eligibility criteria
-    - Statistical design flaws (sample size, power, endpoints)
-    - Safety monitoring gaps
-    - Regulatory compliance issues
-    - Cross-section consistency problems
+    2. Identify the MOST CRITICAL issues first (missing sections, statistical errors)
+    3. Then look for logical inconsistencies and safety gaps
+    4. Use "request_section" to examine specific sections in detail
+    5. When you've found all unique issues, use "submit_report"
 """).strip()
-
 
 # ── Helper Functions ──────────────────────────────────────────────────────────
 
@@ -125,14 +128,16 @@ def build_user_prompt(step: int, observation: Dict[str, Any], history: List[str]
         half = 2800
         protocol_text = protocol_text[:half] + "\n\n[... protocol text truncated ...]\n\n" + protocol_text[-half:]
 
-    issues_str = ""
+   issues_str = ""
     if identified:
-        issues_str = "\nIssues identified so far:\n"
+        issues_str = "\n⚠️ ISSUES ALREADY IDENTIFIED (DO NOT REPEAT THESE):\n"
         for i, iss in enumerate(identified, 1):
             issues_str += (
-                f"  {i}. [{iss.get('severity', '?')}] {iss.get('section', '?')}: "
-                f"{iss.get('description', '?')[:100]}...\n"
+                f"  {i}. [{iss.get('severity', '?')}] Section: {iss.get('section', '?')} | "
+                f"Type: {iss.get('issue_type', '?')} | "
+                f"{iss.get('description', '?')[:150]}\n"
             )
+        issues_str += "\n👉 Your next finding MUST be about a DIFFERENT section or issue type than the above.\n"
 
     history_str = "\n".join(history[-4:]) if history else "None"
 
