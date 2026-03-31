@@ -426,4 +426,11 @@ clinical-trial-auditor/
 <a href="mailto:satgriezeleo1007@gmail.com" target="blank"><img align="center" src="https://cdn.simpleicons.org/gmail/EA4335" alt="gmail" height="30" width="40" /></a>
 
 *Built for the [Meta PyTorch OpenEnv Hackathon](https://www.scaler.com/school-of-technology/meta-pytorch-hackathon) × Scaler School of Technology, 2026*
+<br>
+
+<a href="https://about.meta.com/"><img src="https://github.com/facebook.png" alt="Meta" height="40"/></a>&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://pytorch.org/"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/pytorch/pytorch-original.svg" alt="PyTorch" height="40"/></a>&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://github.com/meta-pytorch/OpenEnv"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/pytorch/pytorch-plain-wordmark.svg" alt="OpenEnv" height="40"/></a>&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://huggingface.co/"><img src="https://github.com/huggingface.png" alt="Hugging Face" height="40"/></a>&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://www.scaler.com/school-of-technology/"><img src="https://github.com/scaleracademy.png" alt="Scaler" height="40"/></a>
 </div>
