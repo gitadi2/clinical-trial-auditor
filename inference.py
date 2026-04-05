@@ -9,14 +9,20 @@ MANDATORY
 
 - The inference script must be named `inference.py` and placed in the root directory of the project
 - Participants must use OpenAI Client for all LLM calls using above variables
+
+STDOUT FORMAT
+The script must emit exactly three line types to stdout, in this order:
+
+[START] task=<task_name> env=<benchmark> model=<model_name>
+[STEP]  step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
+[END]   success=<true|false> steps=<n> score=<score> rewards=<r1,r2,...,rn>
 """
 
+import json
 import os
 import re
-import json
 import textwrap
-import time
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 import requests
 from openai import OpenAI
@@ -26,25 +32,44 @@ from openai import OpenAI
 API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or ""
 MODEL_NAME = os.getenv("MODEL_NAME") or "meta-llama/Llama-3.1-8B-Instruct"
-
-# Environment URL — update to your HF Space URL after deployment
 ENV_BASE_URL = os.getenv("ENV_BASE_URL") or "http://localhost:7860"
 
-MAX_STEPS = 10
+BENCHMARK = "clinical_trial_auditor"
+MAX_STEPS = 15
 TEMPERATURE = 0.2
 MAX_TOKENS = 1024
-
-DEBUG = True
-
-# ── Task Definitions ─────────────────────────────────────────────────────────
+SUCCESS_SCORE_THRESHOLD = 0.1
 
 TASKS = [
-    "section_completeness",      # Easy
-    "eligibility_validation",    # Medium
-    "full_protocol_audit",       # Hard
+    "section_completeness",
+    "eligibility_validation",
+    "full_protocol_audit",
 ]
 
-# ── System Prompt ─────────────────────────────────────────────────────────────
+# ── Structured Logging (MANDATORY FORMAT) ─────────────────────────────────
+
+def log_start(task: str, env: str, model: str) -> None:
+    print(f"[START] task={task} env={env} model={model}", flush=True)
+
+
+def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
+    error_val = error if error else "null"
+    done_val = str(done).lower()
+    print(
+        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
+        flush=True,
+    )
+
+
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(
+        f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}",
+        flush=True,
+    )
+
+
+# ── System Prompt ─────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = textwrap.dedent("""
     You are an expert clinical trial protocol auditor. You review clinical trial
@@ -63,26 +88,29 @@ SYSTEM_PROMPT = textwrap.dedent("""
 
     RESPOND WITH ONLY A VALID JSON OBJECT. No explanations, no markdown, no extra text.
 
+    CRITICAL RULES:
+    1. NEVER repeat a finding you already made. Check the "Issues identified so far" list carefully.
+       If you already flagged something about a topic, move on to a DIFFERENT issue.
+    2. Look for DIFFERENT types of issues: missing sections, statistical flaws, logical
+       contradictions, safety gaps, regulatory violations, endpoint problems, consent issues.
+    3. Each finding must be about a DISTINCT problem. Vary the section and issue_type.
+    4. After finding 3-5 unique issues, use "request_section" to look for more problems
+       in specific sections you haven't examined yet.
+    5. When you have found all issues you can identify, use "submit_report" to finalize.
+       Do NOT keep submitting weak or repeated findings.
+
     Strategy:
     1. Read the protocol text carefully
-    2. Identify issues one at a time using "identify_issue" actions
-    3. Use "request_section" if you need to see a specific section in more detail
-    4. When you've found all issues, use "submit_report" to finalize
-
-    Focus on:
-    - Missing or incomplete required sections (per ICH-GCP)
-    - Logical inconsistencies in eligibility criteria
-    - Statistical design flaws (sample size, power, endpoints)
-    - Safety monitoring gaps
-    - Regulatory compliance issues
-    - Cross-section consistency problems
+    2. Identify the MOST CRITICAL issues first (missing sections, statistical errors)
+    3. Then look for logical inconsistencies and safety gaps
+    4. Use "request_section" to examine specific sections in detail
+    5. When you've found all unique issues, use "submit_report"
 """).strip()
 
 
-# ── Helper Functions ──────────────────────────────────────────────────────────
+# ── Environment API Helpers ───────────────────────────────────────────────
 
 def env_reset(task_id: str) -> Dict[str, Any]:
-    """Reset the environment for a given task."""
     resp = requests.post(
         f"{ENV_BASE_URL}/reset",
         json={"task_id": task_id},
@@ -93,7 +121,6 @@ def env_reset(task_id: str) -> Dict[str, Any]:
 
 
 def env_step(action: Dict[str, Any]) -> Dict[str, Any]:
-    """Take a step in the environment."""
     resp = requests.post(
         f"{ENV_BASE_URL}/step",
         json=action,
@@ -104,14 +131,14 @@ def env_step(action: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def env_grade() -> Dict[str, Any]:
-    """Get the grade for the current episode."""
     resp = requests.get(f"{ENV_BASE_URL}/grade", timeout=30)
     resp.raise_for_status()
     return resp.json()
 
 
+# ── Prompt Builder ────────────────────────────────────────────────────────
+
 def build_user_prompt(step: int, observation: Dict[str, Any], history: List[str]) -> str:
-    """Build the user prompt from the current observation."""
     obs = observation.get("observation", observation)
     task_desc = obs.get("task_description", "")
     protocol_text = obs.get("protocol_text", "")
@@ -120,23 +147,24 @@ def build_user_prompt(step: int, observation: Dict[str, Any], history: List[str]
     step_num = obs.get("step_number", step)
     max_steps = obs.get("max_steps", MAX_STEPS)
 
-    # Truncate protocol text if too long (keep first and last parts)
     if len(protocol_text) > 6000:
         half = 2800
-        protocol_text = protocol_text[:half] + "\n\n[... protocol text truncated ...]\n\n" + protocol_text[-half:]
+        protocol_text = protocol_text[:half] + "\n\n[... truncated ...]\n\n" + protocol_text[-half:]
 
     issues_str = ""
     if identified:
-        issues_str = "\nIssues identified so far:\n"
+        issues_str = "\n⚠️ ISSUES ALREADY IDENTIFIED (DO NOT REPEAT THESE):\n"
         for i, iss in enumerate(identified, 1):
             issues_str += (
-                f"  {i}. [{iss.get('severity', '?')}] {iss.get('section', '?')}: "
-                f"{iss.get('description', '?')[:100]}...\n"
+                f"  {i}. [{iss.get('severity', '?')}] Section: {iss.get('section', '?')} | "
+                f"Type: {iss.get('issue_type', '?')} | "
+                f"{iss.get('description', '?')[:150]}\n"
             )
+        issues_str += "\n👉 Your next finding MUST be about a DIFFERENT section or issue type than the above.\n"
 
     history_str = "\n".join(history[-4:]) if history else "None"
 
-    prompt = textwrap.dedent(f"""
+    return textwrap.dedent(f"""
         Step: {step_num}/{max_steps}
         Task: {task_desc[:500]}
 
@@ -152,30 +180,21 @@ def build_user_prompt(step: int, observation: Dict[str, Any], history: List[str]
         JSON action:
     """).strip()
 
-    return prompt
 
+# ── Action Parser ─────────────────────────────────────────────────────────
 
 def parse_model_action(response_text: str) -> Dict[str, Any]:
-    """Parse the model's response into an action dict."""
     if not response_text:
-        return {
-            "action_type": "submit_report",
-            "description": "No response from model, submitting report.",
-        }
+        return {"action_type": "submit_report", "description": "No response, submitting."}
 
-    # Try to extract JSON from the response
     text = response_text.strip()
-
-    # Remove markdown code fences if present
     text = re.sub(r"```json\s*", "", text)
     text = re.sub(r"```\s*", "", text)
 
-    # Try to find JSON object in the text
     json_match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text, re.DOTALL)
     if json_match:
         try:
             action = json.loads(json_match.group())
-            # Validate required fields
             if "action_type" not in action:
                 action["action_type"] = "identify_issue"
             if "description" not in action:
@@ -184,7 +203,6 @@ def parse_model_action(response_text: str) -> Dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    # Fallback: try to parse the entire text as JSON
     try:
         action = json.loads(text)
         if isinstance(action, dict):
@@ -196,7 +214,6 @@ def parse_model_action(response_text: str) -> Dict[str, Any]:
     except json.JSONDecodeError:
         pass
 
-    # Last resort: wrap the text as a finding description
     return {
         "action_type": "identify_issue",
         "description": text[:500],
@@ -206,129 +223,121 @@ def parse_model_action(response_text: str) -> Dict[str, Any]:
     }
 
 
-# ── Main Inference Loop ──────────────────────────────────────────────────────
+def action_to_short_string(action: Dict[str, Any]) -> str:
+    """Convert action dict to a short string for [STEP] log."""
+    atype = action.get("action_type", "unknown")
+    if atype == "identify_issue":
+        section = action.get("section", "general")
+        desc = action.get("description", "")[:60].replace("\n", " ")
+        return f"identify_issue({section}:{desc})"
+    elif atype == "request_section":
+        section = action.get("section", "unknown")
+        return f"request_section({section})"
+    elif atype == "submit_report":
+        return "submit_report()"
+    else:
+        return f"{atype}()"
+
+
+# ── Main Inference Loop ──────────────────────────────────────────────────
 
 def run_task(client: OpenAI, task_id: str) -> Dict[str, Any]:
-    """Run inference on a single task and return the grade."""
-    print(f"\n{'='*60}")
-    print(f"TASK: {task_id}")
-    print(f"{'='*60}")
+    """Run inference on a single task with mandatory [START]/[STEP]/[END] logging."""
 
-    # Reset environment
-    reset_result = env_reset(task_id)
-    observation = reset_result.get("observation", reset_result)
+    rewards: List[float] = []
+    steps_taken = 0
+    score = 0.0
+    success = False
 
-    print(f"Protocol: {observation.get('protocol_id', '?')}")
-    print(f"Task: {observation.get('task_description', '?')[:100]}...")
-    print(f"Max steps: {observation.get('max_steps', MAX_STEPS)}")
+    # [START] log
+    log_start(task=task_id, env=BENCHMARK, model=MODEL_NAME)
 
-    history: List[str] = []
-    done = reset_result.get("done", False)
-    total_reward = 0.0
+    try:
+        # Reset environment
+        reset_result = env_reset(task_id)
+        observation = reset_result.get("observation", reset_result)
 
-    for step in range(1, MAX_STEPS + 1):
-        if done:
-            print("Episode done. Stopping early.")
-            break
+        history: List[str] = []
+        done = reset_result.get("done", False)
 
-        # Build prompt
-        user_prompt = build_user_prompt(step, {"observation": observation}, history)
-        user_content = [{"type": "text", "text": user_prompt}]
+        for step in range(1, MAX_STEPS + 1):
+            if done:
+                break
 
-        messages = [
-            {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
-            {"role": "user", "content": user_content},
-        ]
+            # Build prompt
+            user_prompt = build_user_prompt(step, {"observation": observation}, history)
+            user_content = [{"type": "text", "text": user_prompt}]
 
-        # Call LLM
-        try:
-            completion = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=messages,
-                temperature=TEMPERATURE,
-                max_tokens=MAX_TOKENS,
-                stream=False,
-            )
-            response_text = completion.choices[0].message.content or ""
-        except Exception as exc:  # noqa: BLE001
-            print(f"  LLM error at step {step}: {exc}")
-            response_text = '{"action_type": "submit_report", "description": "LLM error, submitting."}'
+            messages = [
+                {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
+                {"role": "user", "content": user_content},
+            ]
 
-        # Parse action
-        action = parse_model_action(response_text)
+            # Call LLM
+            try:
+                completion = client.chat.completions.create(
+                    model=MODEL_NAME,
+                    messages=messages,
+                    temperature=TEMPERATURE,
+                    max_tokens=MAX_TOKENS,
+                    stream=False,
+                )
+                response_text = completion.choices[0].message.content or ""
+            except Exception as exc:
+                print(f"[DEBUG] LLM error at step {step}: {exc}", flush=True)
+                response_text = '{"action_type": "submit_report", "description": "LLM error, submitting."}'
 
-        if DEBUG:
-            print(f"\n  Step {step}: {action.get('action_type', '?')}")
-            desc = action.get('description', '')[:80]
-            print(f"    Description: {desc}...")
+            # Parse action
+            action = parse_model_action(response_text)
+            action_str = action_to_short_string(action)
 
-        # Execute step
-        result = env_step(action)
-        observation = result.get("observation", result)
-        reward = result.get("reward", 0.0)
-        done = result.get("done", False)
-        total_reward += reward
+            # Execute step in environment
+            result = env_step(action)
+            observation = result.get("observation", result)
+            reward = result.get("reward", 0.0)
+            done = result.get("done", False)
+            error = observation.get("last_action_error", None)
 
-        # Record history
-        action_str = action.get("action_type", "?")
-        history_line = f"Step {step}: {action_str} -> reward {reward:+.2f}"
-        history.append(history_line)
+            rewards.append(reward)
+            steps_taken = step
 
-        if DEBUG:
-            feedback = observation.get("feedback", "")[:100]
-            print(f"    Reward: {reward:+.4f} | Done: {done}")
-            print(f"    Feedback: {feedback}")
+            # [STEP] log (MANDATORY)
+            log_step(step=step, action=action_str, reward=reward, done=done, error=error)
 
-        if done:
-            print("Episode complete.")
-            break
-    else:
-        print(f"Reached max steps ({MAX_STEPS}).")
+            # History for context
+            history.append(f"Step {step}: {action_str} -> reward {reward:+.2f}")
 
-    # Get final grade
-    grade = env_grade()
-    print(f"\n  FINAL SCORE: {grade.get('total_score', 0.0):.4f}")
-    print(f"  Recall: {grade.get('recall', 0):.3f} | Precision: {grade.get('precision', 0):.3f}")
-    print(f"  Matched: {grade.get('matched_count', 0)}/{grade.get('total_ground_truth', 0)}")
-    print(f"  Total Reward: {total_reward:+.4f}")
+            if done:
+                break
 
-    return grade
+        # Get final grade
+        grade = env_grade()
+        score = grade.get("total_score", 0.0)
+        score = min(max(score, 0.0), 1.0)  # clamp to [0, 1]
+        success = score >= SUCCESS_SCORE_THRESHOLD
+
+    except Exception as exc:
+        print(f"[DEBUG] Task {task_id} error: {exc}", flush=True)
+        score = 0.0
+        success = False
+
+    # [END] log (MANDATORY — always emitted, even on exception)
+    log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+
+    return {"task_id": task_id, "score": score, "steps": steps_taken, "success": success}
 
 
 def main() -> None:
-    """Run baseline inference on all 3 tasks."""
-    print("=" * 60)
-    print("Clinical Trial Protocol Auditor — Baseline Inference")
-    print("=" * 60)
-    print(f"API_BASE_URL: {API_BASE_URL}")
-    print(f"MODEL_NAME:   {MODEL_NAME}")
-    print(f"ENV_BASE_URL: {ENV_BASE_URL}")
-    print()
-
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
     results = {}
     for task_id in TASKS:
-        try:
-            grade = run_task(client, task_id)
-            results[task_id] = grade
-        except Exception as exc:
-            print(f"\nERROR on task {task_id}: {exc}")
-            results[task_id] = {"total_score": 0.0, "error": str(exc)}
+        results[task_id] = run_task(client, task_id)
 
-    # Print summary
-    print("\n" + "=" * 60)
-    print("BASELINE RESULTS SUMMARY")
-    print("=" * 60)
-    for task_id, grade in results.items():
-        score = grade.get("total_score", 0.0)
-        difficulty = {"section_completeness": "easy", "eligibility_validation": "medium", "full_protocol_audit": "hard"}
-        diff = difficulty.get(task_id, "?")
-        print(f"  {task_id} ({diff}): {score:.4f}")
-
-    avg = sum(g.get("total_score", 0.0) for g in results.values()) / len(results)
-    print(f"\n  AVERAGE SCORE: {avg:.4f}")
-    print("=" * 60)
+    # Summary (not part of mandatory format, but useful for debugging)
+    print("", flush=True)
+    for task_id, res in results.items():
+        print(f"[SUMMARY] {task_id}: score={res['score']:.2f} steps={res['steps']} success={res['success']}", flush=True)
 
 
 if __name__ == "__main__":
