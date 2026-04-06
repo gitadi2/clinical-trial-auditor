@@ -433,3 +433,4 @@ clinical-trial-auditor/
 <a href="https://github.com/meta-pytorch/OpenEnv"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/pytorch/pytorch-plain-wordmark.svg" alt="OpenEnv" height="40"/></a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://huggingface.co/"><img src="https://github.com/huggingface.png" alt="Hugging Face" height="40"/></a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://www.scaler.com/school-of-technology/"><img src="https://github.com/scaleracademy.png" alt="Scaler" height="40"/></a>
+</div>
