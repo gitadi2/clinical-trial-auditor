@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-server = "clinical_trial_auditor.server.app:run"
+server = "server.app:main"
 
 [tool.setuptools.packages.find]
 include = ["clinical_trial_auditor*"]
