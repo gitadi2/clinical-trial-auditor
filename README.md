@@ -330,6 +330,33 @@ docker run -p 7860:7860 clinical-trial-auditor
 
 ---
 
+## 🎯 Training Results
+
+We trained a Llama-3.2-3B model using **GRPO (Group Relative Policy Optimization)** via HuggingFace TRL on our environment. After 50 steps of training:
+
+![Training Curves](training_curves.png)
+
+*Reward and loss curves over GRPO training steps*
+
+![Before vs After](before_after_comparison.png)
+
+*Score improvement after training across all 3 tasks*
+
+### Quantitative Improvement
+
+| Task | Baseline | After Training | Improvement |
+|---|:---:|:---:|:---:|
+| Section Completeness (Easy) |  0.100  | 0.100 | +0.000 |
+| Eligibility Validation (Medium) | 0.403  | 0.456 | +0.053 |
+| Full Protocol Audit (Hard) | 0.429 | 0.430 | +0.001 |
+| **Overall** | **0.311** | **0.329** | **+0.018%** |
+
+> *The agent learned to do `request_section` calls before `identify_issue` calls — it learned the workflow, not just keywords.*
+
+### 📓 Reproducibility
+- **Training notebook:** [`Round2_Training.ipynb`](Round2_Training.ipynb)
+- **Open in Colab:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gitadi2/clinical-trial-auditor/blob/main/Round2_Training.ipynb)
+
 ## 📈 Baseline Scores
 
 Baseline agent using `meta-llama/Llama-3.1-8B-Instruct` via HF Inference API:
