@@ -354,8 +354,8 @@ We trained a Llama-3.2-3B model using **GRPO (Group Relative Policy Optimization
 > *The agent learned to do `request_section` calls before `identify_issue` calls — it learned the workflow, not just keywords.*
 
 ### 📓 Reproducibility
-- **Training notebook:** [`Round2_Training.ipynb`](Round2_Training.ipynb)
-- **Open in Colab:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gitadi2/clinical-trial-auditor/blob/main/Round2_Training.ipynb)
+- **Training notebook:** [`Round2_Training_ClinicalTrialAuditor.ipynb`](Round2_Training_ClinicalTrialAuditor.ipynb)
+- **Open in Colab:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gitadi2/clinical-trial-auditor/blob/main/Round2_Training_ClinicalTrialAuditor.ipynb)
 
 ## 📈 Baseline Scores
 
