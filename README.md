@@ -18,6 +18,8 @@ tags:
 
 *An OpenEnv-compatible RL environment where AI agents audit clinical trial protocols for compliance issues, statistical errors, safety gaps, and regulatory violations — simulating a real-world task that costs pharma companies $10M+ per missed finding.*
 
+> 📝 **Project write-up:** [Read BLOG.md →](./BLOG.md)
+
 <a href="https://github.com/meta-pytorch/OpenEnv"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/pytorch/pytorch-plain-wordmark.svg" alt="OpenEnv" height="45"/></a>&nbsp;&nbsp;
 <a href="https://huggingface.co/"><img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="Hugging Face" height="45"/></a>&nbsp;&nbsp;
 <a href="https://www.docker.com/"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/docker/docker-original.svg" alt="Docker" height="45"/></a>  <a href="LICENSE"><img src="https://cdn.simpleicons.org/opensourceinitiative/3DA639" alt="MIT License" height="45"/></a>
