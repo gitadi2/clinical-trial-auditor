@@ -34,11 +34,14 @@ tags:
 <a href="https://www.uvicorn.org/"><img src="https://raw.githubusercontent.com/tomchristie/uvicorn/master/docs/uvicorn.png" alt="Uvicorn" height="45"/></a>&nbsp;&nbsp;
 <a href="https://github.com/meta-pytorch/OpenEnv"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/pytorch/pytorch-plain-wordmark.svg" alt="OpenEnv" height="45"/></a>&nbsp;&nbsp;
 <a href="https://git-scm.com/"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/git/git-original.svg" alt="Git" height="45"/></a>&nbsp;&nbsp;
-<a href="https://github.com/features/actions" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/githubactions/githubactions-original.svg" alt="github-actions" width="40" height="40"/></a>
 <a href="https://yaml.org/"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/yaml/yaml-original.svg" alt="YAML" height="45"/></a>&nbsp;&nbsp;
 <a href="https://www.json.org/"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/json/json-original.svg" alt="JSON" height="45"/></a>&nbsp;&nbsp;
 <a href="https://www.postman.com/"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/postman/postman-original.svg" alt="REST API" height="45"/></a>
-
+<img width="10" />
+  <img src="https://skillicons.dev/icons?i=githubactions" height="44" alt="githubactions logo"  />
+<img width="12" />
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/jupyter/jupyter-original.svg" height="40" alt="jupyter logo"  />
+<a href="https://colab.research.google.com/github/gitadi2/clinical-trial-auditor/blob/main/Round2_Training_ClinicalTrialAuditor.ipynb"><img src="https://cdn.simpleicons.org/googlecolab/F9AB00" alt="Google Colab" height="45"/></a>
 </div>
 
 ---
@@ -357,6 +360,26 @@ We trained a Llama-3.2-3B model using **GRPO (Group Relative Policy Optimization
 - **Training notebook:** [`Round2_Training_ClinicalTrialAuditor.ipynb`](Round2_Training_ClinicalTrialAuditor.ipynb)
 - **Open in Colab:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gitadi2/clinical-trial-auditor/blob/main/Round2_Training_ClinicalTrialAuditor.ipynb)
 
+## 🚀 Procedural Protocol Generation
+
+Beyond the 3 hand-crafted protocols, the environment includes a **procedural generator** that creates infinite unique training protocols on demand:
+
+```python
+from clinical_trial_auditor.server.protocol_generator import generate_protocol_batch
+
+# Generate 100 unique protocols for RL training
+protocols = generate_protocol_batch(n=100, difficulty="hard")
+```
+
+**Why this matters for RL training:**
+- Prevents agent memorization of fixed protocols
+- Scales training data infinitely
+- Tests true generalization across therapeutic areas
+- Covers 6 therapeutic areas × 3 phases × 8 issue categories
+
+This makes the environment **trainable at scale** — agents must learn the audit *workflow*, not memorize specific protocols.
+
+---
 ## 📈 Baseline Scores
 
 Baseline agent using `meta-llama/Llama-3.1-8B-Instruct` via HF Inference API:
@@ -447,9 +470,19 @@ clinical-trial-auditor/
 
 ### Built by ADITYA SATAPATHY
 
-<a href="https://github.com/gitadi2" target="blank"><img align="center" src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/github.svg" alt="gitadi2" height="30" width="40" /></a>
-<a href="https://linkedin.com/in/adisatapathy" target="blank"><img align="center" src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/linked-in-alt.svg" alt="adisatapathy" height="30" width="40" /></a>
-<a href="mailto:satgriezeleo1007@gmail.com" target="blank"><img align="center" src="https://cdn.simpleicons.org/gmail/EA4335" alt="gmail" height="30" width="40" /></a>
+<p align="center">
+  <a href="https://github.com/gitadi2" target="_blank"><img src="https://cdn.simpleicons.org/github/ffffff" alt="GitHub @gitadi2" height="40" style="margin: 0 15px;"/></a>
+  <img width="12" />
+  <a href="https://www.linkedin.com/in/adisatapathy" target="_blank"><img src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/linked-in-alt.svg" alt="LinkedIn @adisatapathy" height="40" style="margin: 0 15px;"/></a>
+  <img width="12" />
+  <a href="mailto:satgriezeleo1007@gmail.com" target="_blank"><img src="https://cdn.simpleicons.org/gmail/EA4335" alt="satgriezeleo1007@gmail.com" height="40" style="margin: 0 15px;"/></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/gitadi2"><code>@gitadi2</code></a> &middot;
+  <a href="https://www.linkedin.com/in/adisatapathy"><code>@adisatapathy</code></a> &middot;
+  <a href="mailto:satgriezeleo1007@gmail.com"><code>satgriezeleo1007@gmail.com</code></a>
+</p>
 
 *Built for the [Meta PyTorch OpenEnv Hackathon](https://www.scaler.com/school-of-technology/meta-pytorch-hackathon) × Scaler School of Technology, 2026*
 
