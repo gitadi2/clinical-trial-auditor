@@ -1,197 +1,74 @@
 # Copyright (c) 2026 Aditya Satapathy
-# Clinical Trial Protocol Auditor - FastAPI Server
-# Implements OpenEnv HTTP API: /reset, /step, /state, /tasks, /grade
-
-import os
-import logging
+# Clinical Trial Protocol Auditor - FastAPI Server + Dashboard UI
+import os, logging
 from typing import Any, Dict, Optional
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
-
 from .environment import ClinicalTrialAuditorEnvironment
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# ── FastAPI App ───────────────────────────────────────────────────────────
-
-app = FastAPI(
-    title="Clinical Trial Protocol Auditor",
-    description=(
-        "An OpenEnv environment where AI agents audit clinical trial protocols "
-        "for compliance issues, missing sections, statistical errors, and "
-        "regulatory violations. Implements the full OpenEnv spec with typed "
-        "models, step/reset/state API, and deterministic graders."
-    ),
-    version="1.0.0",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Per-session environments (simple single-session for HF Space)
-# For production, use session management
+app = FastAPI(title="Clinical Trial Protocol Auditor", version="1.0.0")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 env = ClinicalTrialAuditorEnvironment()
 
-
-# ── Request/Response Models ───────────────────────────────────────────────
-
 class ResetRequest(BaseModel):
-    task_id: str = Field(
-        default="section_completeness",
-        description="Task to load: 'section_completeness' (easy), "
-        "'eligibility_validation' (medium), or 'full_protocol_audit' (hard)",
-    )
-    seed: Optional[int] = Field(default=None, description="Random seed (unused, env is deterministic)")
-
-
+    task_id: str = Field(default="section_completeness")
+    seed: Optional[int] = Field(default=None)
 class StepRequest(BaseModel):
-    action_type: str = Field(
-        ...,
-        description="Action type: 'identify_issue', 'request_section', or 'submit_report'",
-    )
-    section: Optional[str] = Field(
-        None,
-        description="Protocol section reference",
-    )
-    issue_type: Optional[str] = Field(
-        None,
-        description="Issue category: 'missing_section', 'logical_inconsistency', "
-        "'statistical_error', 'safety_gap', 'regulatory_violation', "
-        "'endpoint_issue', 'consent_issue'",
-    )
-    severity: Optional[str] = Field(None, description="Severity: 'critical', 'major', 'minor'")
-    description: str = Field(..., description="Detailed description of finding or request")
-    recommendation: Optional[str] = Field(None, description="Suggested corrective action")
-
-
+    action_type: str = Field(...)
+    section: Optional[str] = Field(None)
+    issue_type: Optional[str] = Field(None)
+    severity: Optional[str] = Field(None)
+    description: str = Field(...)
+    recommendation: Optional[str] = Field(None)
 class ObservationResponse(BaseModel):
     observation: Dict[str, Any]
     reward: float = 0.0
     done: bool = False
     info: Dict[str, Any] = Field(default_factory=dict)
 
+DASHBOARD_HTML = '<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">\n<title>CTA Dashboard</title>\n<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}body{background:#080c18;color:#c8d6e5;font-family:\'Segoe UI\',system-ui,sans-serif;overflow-x:hidden}\n.hd{padding:10px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(6,182,212,.15);background:linear-gradient(135deg,#0a0e1a,#12082a,#0a0e1a)}\n.hd-l{display:flex;align-items:center;gap:10px}\n.logo{position:relative;width:40px;height:40px}.logo .r1{position:absolute;inset:0;border:2px solid #06b6d4;border-radius:50%;opacity:.25;animation:p 3s infinite}.logo .r2{position:absolute;inset:5px;border:1.5px solid #06b6d4;border-radius:50%;opacity:.5;animation:p 3s .5s infinite}.logo .core{position:absolute;inset:10px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff}\n@keyframes p{0%,100%{opacity:.25;transform:scale(1)}50%{opacity:.6;transform:scale(1.05)}}\n.hd h1{font-size:15px;font-weight:700;color:#06b6d4}.hd .sub{font-size:8px;color:#4a6785;letter-spacing:3px;text-transform:uppercase}\n.hd-r{display:flex;gap:14px;align-items:center;font-size:10px;font-family:monospace}.hd-r .on{color:#10b981}.hd-r span{color:#4a6785}.hd-r .cy{color:#06b6d4}\n.ctrl{padding:8px 20px;border-bottom:1px solid rgba(6,182,212,.1);display:flex;align-items:center;justify-content:space-between;background:#0a0f1e;flex-wrap:wrap;gap:6px}\n.ctrl-l{display:flex;gap:6px;align-items:center;flex-wrap:wrap}\n.ctrl select{background:#111827;border:1px solid #2a3550;color:#06b6d4;padding:6px 10px;border-radius:6px;font-size:11px;font-family:monospace;cursor:pointer}\n.btn{padding:7px 16px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:none;transition:all .2s}.btn-go{background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff}.btn-go:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(6,182,212,.3)}.btn-st{background:#1a2236;color:#e2e8f0;border:1px solid #2a3550}.btn-sb{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3)}.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}\n.ctrl-r{font-size:10px;font-family:monospace;color:#4a6785}\n.grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1px;background:rgba(6,182,212,.06)}.cell{background:#0a0f1e;padding:16px;overflow:hidden}.c2{grid-column:span 2}\n.lb{font-size:9px;text-transform:uppercase;letter-spacing:2px;color:#06b6d4;font-weight:600;margin-bottom:10px}\n#map{width:100%;height:230px;border-radius:6px;overflow:hidden;background:#0d1525}\n.ml{position:absolute;bottom:14px;left:16px;display:flex;gap:12px;font-size:8px;font-family:monospace;z-index:999}\n.leaflet-tooltip{background:#111827!important;border:1px solid #2a3550!important;color:#06b6d4!important;font-family:monospace!important;font-size:10px!important;border-radius:4px!important;padding:3px 8px!important}\n.mg{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px}.mc{background:#111827;padding:6px;border-radius:4px;text-align:center}.mc .v{font-family:monospace;font-size:15px;font-weight:700}.mc .l{font-size:7px;color:#4a6785;text-transform:uppercase;letter-spacing:1px;margin-top:2px}\n.bi{margin-bottom:8px}.bi .bh{display:flex;justify-content:space-between;font-size:9px;margin-bottom:3px}.bi .n{color:#94a3b8}.bi .s{font-family:monospace;font-weight:700}.bt{height:4px;background:#1a2236;border-radius:2px;overflow:hidden}.bf{height:100%;border-radius:2px;transition:width 1s ease}\n.sc{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;min-height:80px}.sk{min-width:130px;background:#111827;border:1px solid #1a2236;border-radius:5px;padding:10px;flex-shrink:0;animation:fi .3s ease}.sk.dn{background:linear-gradient(135deg,rgba(16,185,129,.06),rgba(6,182,212,.06));border-color:#10b981}@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}\n.pt{width:100%;font-size:10px;font-family:monospace;border-collapse:collapse}.pt th{color:#4a6785;font-weight:500;padding:5px;text-align:left;border-bottom:1px solid #1a2236}.pt td{padding:6px 5px;border-bottom:1px solid #0d1525}.bd{padding:1px 6px;border-radius:3px;font-size:8px;font-weight:600}\n.dt{width:100%;font-size:9px;font-family:monospace;border-collapse:collapse}.dt th{color:#4a6785;font-weight:500;padding:5px;text-align:center}.dt td{padding:5px;text-align:center;border-top:1px solid #1a2236}\n.ti{display:flex;align-items:center;gap:8px;margin-bottom:8px}.tc{width:30px;height:30px;border-radius:50%;border:2px solid;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;font-family:monospace}\n.inp{background:#0d1220;border:1px solid #1a2236;border-radius:8px;padding:12px;margin-top:10px;display:none}.inp-r{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap}.inp select,.inp textarea{background:#111827;border:1px solid #2a3550;color:#c8d6e5;padding:6px 8px;border-radius:5px;font-size:11px;font-family:monospace}.inp textarea{width:100%;min-height:50px;resize:vertical}.inp select{cursor:pointer}\n.ft{padding:6px 20px;border-top:1px solid rgba(6,182,212,.15);display:flex;justify-content:space-between;font-size:9px;color:#4a6785;font-family:monospace;flex-wrap:wrap;gap:4px}.ft .st::before{content:\'\';display:inline-block;width:5px;height:5px;border-radius:50%;background:#10b981;margin-right:5px}\n.emp{text-align:center;padding:25px;color:#2a3550;font-size:11px}\n@media(max-width:900px){.grid{grid-template-columns:1fr 1fr}.c2{grid-column:span 2}}\n</style></head><body>\n<div class="hd"><div class="hd-l"><div class="logo"><div class="r1"></div><div class="r2"></div><div class="core">CT</div></div><div><h1>CLINICAL TRIAL PROTOCOL AUDITOR</h1><div class="sub">Agentic ICH-GCP compliance benchmark &middot; OpenEnv v1</div></div></div><div class="hd-r"><span class="on">&#9679; SYSTEM ONLINE</span><span>3 PROTOCOLS</span><span>22 ISSUES</span><span class="cy">FDA &middot; EMA &middot; ICH-GCP</span><span id="clk"></span></div></div>\n\n<div class="ctrl"><div class="ctrl-l"><select id="tSel"><option value="section_completeness">&#x1F7E2; Section Completeness (Easy)</option><option value="eligibility_validation">&#x1F7E1; Eligibility Validation (Medium)</option><option value="full_protocol_audit">&#x1F534; Full Protocol Audit (Hard)</option></select><button class="btn btn-go" id="bGo" onclick="go()">&#9654; Start Audit</button><button class="btn btn-st" id="bSt" onclick="tog()" disabled>&#9193; Manual Step</button><button class="btn btn-sb" id="bSb" onclick="sub()" disabled>&#9209; Submit Report</button></div><div class="ctrl-r" id="eInf">Select task &amp; click Start Audit</div></div>\n\n<div class="grid">\n<div class="cell c2" style="position:relative;min-height:280px"><div class="lb">&#127758; Global clinical trial protocol coverage</div><div id="map"></div><div class="ml"><span style="color:#06b6d4">&#9679; FDA</span><span style="color:#8b5cf6">&#9679; EMA</span><span style="color:#10b981">&#9679; PMDA</span><span style="color:#f59e0b">&#9679; Multi-region</span><span style="color:#ec4899">&#9679; Expansion</span></div></div>\n\n<div class="cell"><div class="lb">Benchmark score</div><div style="text-align:center;margin:8px 0"><svg viewBox="0 0 100 58" width="130"><path d="M15,52 A35,35 0 1,1 85,52" fill="none" stroke="#1a2236" stroke-width="6" stroke-linecap="round"/><path id="gA" d="M15,52 A35,35 0 1,1 85,52" fill="none" stroke="url(#sg)" stroke-width="6" stroke-linecap="round" stroke-dasharray="110" stroke-dashoffset="110"/><defs><linearGradient id="sg"><stop offset="0%" stop-color="#ef4444"/><stop offset="50%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#10b981"/></linearGradient></defs><text id="gT" x="50" y="48" text-anchor="middle" font-size="18" font-weight="700" fill="#06b6d4" font-family="monospace">0.00</text></svg></div><div class="mg"><div class="mc"><div class="v" id="mP" style="color:#10b981">&mdash;</div><div class="l">Precision</div></div><div class="mc"><div class="v" id="mR" style="color:#f59e0b">&mdash;</div><div class="l">Recall</div></div><div class="mc"><div class="v" id="mS" style="color:#8b5cf6">&mdash;</div><div class="l">Severity</div></div><div class="mc"><div class="v" id="mE" style="color:#06b6d4">&mdash;</div><div class="l">Efficiency</div></div></div></div>\n\n<div class="cell"><div class="lb">Issue detection rate</div><div id="iBars"><div class="bi"><div class="bh"><span class="n">Missing section</span><span class="s" style="color:#4a6785">&mdash;</span></div><div class="bt"><div class="bf" style="width:0;background:linear-gradient(90deg,#10b981,#06b6d4)"></div></div></div><div class="bi"><div class="bh"><span class="n">Logical inconsistency</span><span class="s" style="color:#4a6785">&mdash;</span></div><div class="bt"><div class="bf" style="width:0;background:linear-gradient(90deg,#f59e0b,#06b6d4)"></div></div></div><div class="bi"><div class="bh"><span class="n">Statistical error</span><span class="s" style="color:#4a6785">&mdash;</span></div><div class="bt"><div class="bf" style="width:0;background:linear-gradient(90deg,#f59e0b,#8b5cf6)"></div></div></div><div class="bi"><div class="bh"><span class="n">Safety gap</span><span class="s" style="color:#4a6785">&mdash;</span></div><div class="bt"><div class="bf" style="width:0;background:linear-gradient(90deg,#ef4444,#f59e0b)"></div></div></div><div class="bi"><div class="bh"><span class="n">Regulatory violation</span><span class="s" style="color:#4a6785">&mdash;</span></div><div class="bt"><div class="bf" style="width:0;background:linear-gradient(90deg,#ef4444,#ec4899)"></div></div></div><div class="bi"><div class="bh"><span class="n">Endpoint / Consent</span><span class="s" style="color:#4a6785">&mdash;</span></div><div class="bt"><div class="bf" style="width:0;background:linear-gradient(90deg,#ec4899,#8b5cf6)"></div></div></div></div></div>\n\n<div class="cell c2"><div class="lb">Live agent telemetry &mdash; reward trajectory</div><div style="height:110px"><canvas id="ch"></canvas></div></div>\n\n<div class="cell"><div class="lb">Task difficulty matrix</div><table class="dt"><tr><th>Task</th><th>Score</th><th>Found</th><th>Steps</th></tr><tr><td><span style="color:#10b981">&#9679;</span> Easy</td><td id="xE" style="color:#10b981;font-weight:700">&mdash;</td><td id="xEF">&mdash;</td><td id="xES">&mdash;</td></tr><tr><td><span style="color:#f59e0b">&#9679;</span> Med</td><td id="xM" style="color:#f59e0b;font-weight:700">&mdash;</td><td id="xMF">&mdash;</td><td id="xMS">&mdash;</td></tr><tr><td><span style="color:#ef4444">&#9679;</span> Hard</td><td id="xH" style="color:#ef4444;font-weight:700">&mdash;</td><td id="xHF">&mdash;</td><td id="xHS">&mdash;</td></tr></table></div>\n\n<div class="cell"><div class="lb">LLM capability tiers</div><div class="ti"><div class="tc" style="border-color:#ef4444;color:#ef4444">0.1</div><div><div style="font-size:10px;font-weight:600;color:#ef4444">Naive agent</div><div style="font-size:8px;color:#4a6785">Random / no-context</div></div></div><div class="ti"><div class="tc" style="border-color:#f59e0b;color:#f59e0b">0.5</div><div><div style="font-size:10px;font-weight:600;color:#f59e0b">Heuristic agent</div><div style="font-size:8px;color:#4a6785">Pattern-matching</div></div></div><div class="ti"><div class="tc" style="border-color:#10b981;color:#10b981">0.8</div><div><div style="font-size:10px;font-weight:600;color:#10b981">Reasoning agent</div><div style="font-size:8px;color:#4a6785">Multi-step inference</div></div></div></div>\n\n<div class="cell c2"><div class="lb">Agent step log &mdash; real-time</div><div class="sc" id="sL"><div class="emp">Steps appear here after starting an audit...</div></div><div class="inp" id="iP"><div class="inp-r"><select id="aT"><option value="identify_issue">identify_issue</option><option value="request_section">request_section</option><option value="submit_report">submit_report</option></select><select id="aS"><option value="">Section...</option><option value="title">title</option><option value="background">background</option><option value="objectives">objectives</option><option value="study_design">study_design</option><option value="eligibility_criteria">eligibility_criteria</option><option value="study_procedures">study_procedures</option><option value="statistical_design">statistical_design</option><option value="safety_monitoring">safety_monitoring</option><option value="endpoints">endpoints</option><option value="ethical_considerations">ethical_considerations</option><option value="data_management">data_management</option></select><select id="aI"><option value="">Issue type...</option><option value="missing_section">missing_section</option><option value="logical_inconsistency">logical_inconsistency</option><option value="statistical_error">statistical_error</option><option value="safety_gap">safety_gap</option><option value="regulatory_violation">regulatory_violation</option><option value="endpoint_issue">endpoint_issue</option><option value="consent_issue">consent_issue</option></select><select id="aV"><option value="">Severity...</option><option value="critical">critical</option><option value="major">major</option><option value="minor">minor</option></select></div><div class="inp-r"><textarea id="aD" placeholder="Describe the finding..."></textarea></div><div class="inp-r"><button class="btn btn-go" onclick="snd()">Send Action</button></div></div></div>\n\n<div class="cell c2"><div class="lb">Protocol audit summary</div><table class="pt"><tr><th>Protocol</th><th>Phase</th><th>Therapeutic Area</th><th>Issues</th><th>Difficulty</th><th style="text-align:right">Status</th></tr><tr><td style="color:#06b6d4">XR-2024-001</td><td>Phase III</td><td>Oncology (NSCLC)</td><td>5</td><td style="color:#10b981">Easy</td><td style="text-align:right" id="p1"><span class="bd" style="background:rgba(100,116,139,.15);color:#64748b">Idle</span></td></tr><tr><td style="color:#06b6d4">CV-2024-088</td><td>Phase III</td><td>Cardiology (CVD+T2DM)</td><td>7</td><td style="color:#f59e0b">Medium</td><td style="text-align:right" id="p2"><span class="bd" style="background:rgba(100,116,139,.15);color:#64748b">Idle</span></td></tr><tr><td style="color:#06b6d4">RD-2024-155</td><td>Phase II/III</td><td>Gene Therapy (ADA-SCID)</td><td>10</td><td style="color:#ef4444">Hard</td><td style="text-align:right" id="p3"><span class="bd" style="background:rgba(100,116,139,.15);color:#64748b">Idle</span></td></tr></table></div>\n</div>\n\n<div class="ft"><span class="st" id="fS">Environment ready</span><span>ICH-GCP E6(R2) &middot; FDA 21 CFR &middot; EMA Directives</span><span>Built by Aditya Satapathy &middot; Meta PyTorch Hackathon 2026</span></div>\n\n<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>\n<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>\n<script>\nlet on=false,sN=0,cR=0,rw=[],cL=[],cD=[],mC,tS={};\nconst tM={section_completeness:\'p1\',eligibility_validation:\'p2\',full_protocol_audit:\'p3\'};\nconst tF={section_completeness:[\'xE\',\'xEF\',\'xES\'],eligibility_validation:[\'xM\',\'xMF\',\'xMS\'],full_protocol_audit:[\'xH\',\'xHF\',\'xHS\']};\nconst mp=L.map(\'map\',{zoomControl:false,attributionControl:false}).setView([25,10],2);\nL.tileLayer(\'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png\',{subdomains:\'abcd\'}).addTo(mp);\n[[38.9,-97,8,\'#06b6d4\',\'FDA \\u2014 Phase III Oncology (NSCLC)\'],[48.8,2.3,8,\'#8b5cf6\',\'EMA \\u2014 CV Outcomes Trial\'],[35.7,139.7,8,\'#10b981\',\'PMDA \\u2014 Gene Therapy (ADA-SCID)\'],[51.5,-0.1,6,\'#f59e0b\',\'MHRA \\u2014 UK\'],[28.6,77.2,6,\'#f59e0b\',\'CDSCO \\u2014 India\'],[-33.9,151.2,5,\'#ec4899\',\'TGA \\u2014 Australia\'],[37.6,127,5,\'#ec4899\',\'MFDS \\u2014 South Korea\'],[1.3,103.8,5,\'#f59e0b\',\'HSA \\u2014 Singapore\'],[-23.5,-46.6,5,\'#ec4899\',\'ANVISA \\u2014 Brazil\'],[39.9,116.4,6,\'#f59e0b\',\'NMPA \\u2014 China\'],[55.7,37.6,5,\'#8b5cf6\',\'Russia\']].forEach(function(d){L.circleMarker([d[0],d[1]],{radius:d[2],color:d[3],fillColor:d[3],fillOpacity:.6,weight:1.5}).addTo(mp).bindTooltip(d[4],{direction:\'top\',offset:[0,-8]})});\n[[38.9,-97,48.8,2.3,\'#06b6d4\'],[48.8,2.3,35.7,139.7,\'#8b5cf6\'],[38.9,-97,28.6,77.2,\'#f59e0b\'],[51.5,-0.1,55.7,37.6,\'#8b5cf6\'],[28.6,77.2,1.3,103.8,\'#f59e0b\'],[35.7,139.7,37.6,127,\'#10b981\']].forEach(function(d){L.polyline([[d[0],d[1]],[d[2],d[3]]],{color:d[4],weight:1,opacity:.3,dashArray:\'4,4\'}).addTo(mp)});\nvar cx=document.getElementById(\'ch\').getContext(\'2d\');\nmC=new Chart(cx,{type:\'line\',data:{labels:[],datasets:[{data:[],borderColor:\'#06b6d4\',borderWidth:2,pointRadius:5,pointBackgroundColor:[],fill:{target:\'origin\',above:\'rgba(6,182,212,0.08)\',below:\'rgba(239,68,68,0.05)\'},tension:.3}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:400},plugins:{legend:{display:false}},scales:{x:{grid:{color:\'#1a2236\'},ticks:{color:\'#4a6785\',font:{family:\'monospace\',size:10}}},y:{grid:{color:\'#1a2236\'},ticks:{color:\'#4a6785\',font:{family:\'monospace\',size:10},callback:function(v){return v.toFixed(2)}},suggestedMin:-.15,suggestedMax:.3}}}});\nasync function go(){document.getElementById(\'bGo\').disabled=true;try{var r=await fetch(\'/reset\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\'},body:JSON.stringify({task_id:document.getElementById(\'tSel\').value})});var d=await r.json();var o=d.observation;on=true;sN=0;cR=0;rw=[];cL=[];cD=[];mC.data.labels=[];mC.data.datasets[0].data=[];mC.data.datasets[0].pointBackgroundColor=[];mC.update();document.getElementById(\'sL\').innerHTML=\'\';document.getElementById(\'bSt\').disabled=false;document.getElementById(\'bSb\').disabled=false;document.getElementById(\'eInf\').textContent=\'Protocol: \'+(o.protocol_id||\'\')+\' | Steps: 0/\'+o.max_steps;document.getElementById(\'fS\').textContent=\'Audit started\';var k=tM[document.getElementById(\'tSel\').value];if(k)document.getElementById(k).innerHTML=\'<span class="bd" style="background:rgba(6,182,212,.15);color:#06b6d4">Running</span>\';addS(0,\'reset()\',\'Protocol loaded. Begin your audit.\',0,false)}catch(e){document.getElementById(\'fS\').textContent=\'Error: \'+e.message}document.getElementById(\'bGo\').disabled=false}\nfunction tog(){var el=document.getElementById(\'iP\');el.style.display=el.style.display===\'block\'?\'none\':\'block\'}\nasync function snd(){if(!on)return;var a={action_type:document.getElementById(\'aT\').value,section:document.getElementById(\'aS\').value||null,issue_type:document.getElementById(\'aI\').value||null,severity:document.getElementById(\'aV\').value||null,description:document.getElementById(\'aD\').value||\'Audit finding\',recommendation:null};await ds(a)}\nasync function sub(){await ds({action_type:\'submit_report\',description:\'Finalizing audit report\'})}\nasync function ds(a){if(!on)return;try{var r=await fetch(\'/step\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\'},body:JSON.stringify(a)});var d=await r.json();var o=d.observation;sN=o.step_number;var rv=d.reward||0;cR+=rv;rw.push(rv);var as=a.action_type+(a.section?\'(\'+a.section+\')\':\'\');addS(sN,as,(o.feedback||\'\').substring(0,200),rv,d.done);cL.push(\'S\'+sN);cD.push(rv);mC.data.labels=cL;mC.data.datasets[0].data=cD;mC.data.datasets[0].pointBackgroundColor=cD.map(function(v){return v>0?\'#10b981\':v<0?\'#ef4444\':\'#4a6785\'});mC.update();document.getElementById(\'eInf\').textContent=\'Steps: \'+sN+\'/\'+o.max_steps+\' | Reward: \'+cR.toFixed(2);if(d.done){on=false;document.getElementById(\'bSt\').disabled=true;document.getElementById(\'bSb\').disabled=true;document.getElementById(\'iP\').style.display=\'none\';document.getElementById(\'fS\').textContent=\'Episode complete\';await fg()}}catch(e){document.getElementById(\'fS\').textContent=\'Error: \'+e.message}}\nfunction addS(n,a,f,rv,dn){var l=document.getElementById(\'sL\');if(n===0&&l.querySelector(\'.emp\'))l.innerHTML=\'\';var c=rv>0?\'#10b981\':rv<0?\'#ef4444\':\'#06b6d4\';var dc=dn?\' dn\':\'\';l.innerHTML+=\'<div class="sk\'+dc+\'" style="border-left:2px solid \'+c+\'"><div style="font-family:monospace;font-size:9px;color:\'+(dn?\'#10b981\':\'#06b6d4\')+\';font-weight:700">STEP \'+n+\'</div><div style="font-size:9px;color:#94a3b8;margin-top:3px">\'+a+\'</div><div style="font-size:8px;color:#64748b;margin-top:2px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">\'+f.substring(0,60)+\'</div><div style="font-family:monospace;font-size:12px;font-weight:700;margin-top:5px;color:\'+c+\'">\'+(rv>=0?\'+\':\'\')+rv.toFixed(2)+\'</div></div>\';l.scrollLeft=l.scrollWidth}\nasync function fg(){try{var r=await fetch(\'/grade\');var g=await r.json();var s=g.total_score||0;document.getElementById(\'gT\').textContent=s.toFixed(2);document.getElementById(\'gA\').setAttribute(\'stroke-dashoffset\',110-s*110);document.getElementById(\'mP\').textContent=(g.precision||0).toFixed(2);document.getElementById(\'mR\').textContent=(g.recall||0).toFixed(2);document.getElementById(\'mS\').textContent=(g.severity_accuracy||0).toFixed(2);document.getElementById(\'mE\').textContent=(g.efficiency||0).toFixed(2);var tid=document.getElementById(\'tSel\').value;var k=tM[tid];if(k)document.getElementById(k).innerHTML=\'<span class="bd" style="background:rgba(16,185,129,.15);color:#10b981">Audited</span>\';var f=tF[tid];if(f){document.getElementById(f[0]).textContent=s.toFixed(2);document.getElementById(f[1]).textContent=(g.matched_count||0)+\'/\'+(g.total_ground_truth||0);document.getElementById(f[2]).textContent=\'\'+sN}tS[tid]=s}catch(e){}}\nsetInterval(function(){document.getElementById(\'clk\').textContent=new Date().toLocaleTimeString()},1000);\nsetTimeout(function(){mp.invalidateSize()},500);\n</script></body></html>'
 
-# ── API Endpoints ─────────────────────────────────────────────────────────
-
-@app.get("/")
-async def root():
-    """Health check and environment info."""
-    return {
-        "name": "Clinical Trial Protocol Auditor",
-        "version": "1.0.0",
-        "spec": "openenv",
-        "status": "ready",
-        "description": (
-            "AI agents audit clinical trial protocols for compliance issues, "
-            "missing sections, statistical errors, and regulatory violations."
-        ),
-        "tasks": env.get_tasks(),
-    }
-
-
+@app.get("/", response_class=HTMLResponse)
+async def dashboard():
+    return DASHBOARD_HTML
 @app.get("/health")
 async def health():
-    """Health check endpoint for HF Spaces."""
     return {"status": "healthy"}
-
-
+@app.get("/api")
+async def api_info():
+    return {"name": "Clinical Trial Protocol Auditor", "version": "1.0.0", "spec": "openenv", "status": "ready", "tasks": env.get_tasks()}
 @app.post("/reset")
 async def reset(request: ResetRequest = ResetRequest()):
-    """Reset the environment and start a new audit episode.
-
-    Available tasks:
-    - section_completeness (easy): Find missing protocol sections
-    - eligibility_validation (medium): Find logical issues in eligibility criteria
-    - full_protocol_audit (hard): Comprehensive audit of a gene therapy protocol
-    """
     try:
-        observation = env.reset(task_id=request.task_id, seed=request.seed)
-        return ObservationResponse(
-            observation=observation,
-            reward=0.0,
-            done=False,
-            info={"episode_id": observation.get("metadata", {}).get("episode_id", "")},
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Reset error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
+        obs = env.reset(task_id=request.task_id, seed=request.seed)
+        return ObservationResponse(observation=obs, reward=0.0, done=False, info={"episode_id": obs.get("metadata", {}).get("episode_id", "")})
+    except ValueError as e: raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e: logger.error(f"Reset error: {e}"); raise HTTPException(status_code=500, detail=str(e))
 @app.post("/step")
 async def step(request: StepRequest):
-    """Execute an audit action in the environment.
-
-    Action types:
-    - identify_issue: Flag a specific issue in the protocol
-    - request_section: Request detailed view of a protocol section
-    - submit_report: Finalize the audit (ends episode)
-    """
     try:
-        action = {
-            "action_type": request.action_type,
-            "section": request.section,
-            "issue_type": request.issue_type,
-            "severity": request.severity,
-            "description": request.description,
-            "recommendation": request.recommendation,
-        }
-        observation = env.step(action)
-        return ObservationResponse(
-            observation=observation,
-            reward=observation.get("reward", 0.0),
-            done=observation.get("done", False),
-            info=observation.get("metadata", {}),
-        )
-    except Exception as e:
-        logger.error(f"Step error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
+        action = {"action_type": request.action_type, "section": request.section, "issue_type": request.issue_type, "severity": request.severity, "description": request.description, "recommendation": request.recommendation}
+        obs = env.step(action)
+        return ObservationResponse(observation=obs, reward=obs.get("reward", 0.0), done=obs.get("done", False), info=obs.get("metadata", {}))
+    except Exception as e: logger.error(f"Step error: {e}"); raise HTTPException(status_code=500, detail=str(e))
 @app.get("/state")
 async def get_state():
-    """Get current environment state for checkpointing/debugging."""
-    try:
-        return env.state
-    except Exception as e:
-        logger.error(f"State error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
+    try: return env.state
+    except Exception as e: logger.error(f"State error: {e}"); raise HTTPException(status_code=500, detail=str(e))
 @app.get("/tasks")
 async def get_tasks():
-    """List all available audit tasks with metadata."""
     return {"tasks": env.get_tasks()}
-
-
 @app.get("/grade")
 async def grade():
-    """Grade the current episode and return detailed scoring breakdown."""
-    try:
-        return env.grade()
-    except Exception as e:
-        logger.error(f"Grade error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ── Startup ───────────────────────────────────────────────────────────────
-
+    try: return env.grade()
+    except Exception as e: logger.error(f"Grade error: {e}"); raise HTTPException(status_code=500, detail=str(e))
 @app.on_event("startup")
 async def startup():
     logger.info("Clinical Trial Protocol Auditor environment ready.")
-    logger.info(f"Available tasks: {[t['id'] for t in env.get_tasks()]}")
-
-
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 7860))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 7860)))
