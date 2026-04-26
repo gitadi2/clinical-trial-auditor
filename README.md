@@ -20,7 +20,12 @@ tags:
 
 <a href="https://github.com/meta-pytorch/OpenEnv"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/pytorch/pytorch-plain-wordmark.svg" alt="OpenEnv" height="45"/></a>&nbsp;&nbsp;
 <a href="https://huggingface.co/"><img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="Hugging Face" height="45"/></a>&nbsp;&nbsp;
+<<<<<<< HEAD
 <a href="https://www.docker.com/"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/docker/docker-original.svg" alt="Docker" height="45"/></a>  <a href="LICENSE"><img src="https://cdn.simpleicons.org/opensourceinitiative/3DA639" alt="MIT License" height="45"/></a>
+=======
+<a href="https://www.docker.com/"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/docker/docker-original.svg" alt="Docker" height="45"/></a>  
+<a href="LICENSE"><img src="https://cdn.simpleicons.org/opensourceinitiative/3DA639" alt="MIT License" height="45"/></a>
+>>>>>>> 2fc8401 (Add procedural protocol generator for infinite training data)
 
 <br>
 
@@ -460,4 +465,3 @@ clinical-trial-auditor/
 <a href="https://github.com/meta-pytorch/OpenEnv"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/pytorch/pytorch-plain-wordmark.svg" alt="OpenEnv" height="40"/></a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://huggingface.co/"><img src="https://github.com/huggingface.png" alt="Hugging Face" height="40"/></a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://www.scaler.com/school-of-technology/"><img src="https://github.com/scaleracademy.png" alt="Scaler" height="40"/></a>
-</div>

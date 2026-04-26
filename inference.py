@@ -34,10 +34,7 @@ API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or ""
 MODEL_NAME = os.getenv("MODEL_NAME") or "meta-llama/Llama-3.1-8B-Instruct"
 ENV_BASE_URL = os.getenv("ENV_BASE_URL") or "http://localhost:7860"
 
-<<<<<<< HEAD
 BENCHMARK = "clinical_trial_auditor"
-=======
->>>>>>> 50a76d2d81c148889aff6defdda4f47f2e29959c
 MAX_STEPS = 15
 TEMPERATURE = 0.2
 MAX_TOKENS = 1024
@@ -110,12 +107,8 @@ SYSTEM_PROMPT = textwrap.dedent("""
     5. When you've found all unique issues, use "submit_report"
 """).strip()
 
-<<<<<<< HEAD
 
 # ── Environment API Helpers ───────────────────────────────────────────────
-=======
-# ── Helper Functions ──────────────────────────────────────────────────────────
->>>>>>> 50a76d2d81c148889aff6defdda4f47f2e29959c
 
 def env_reset(task_id: str) -> Dict[str, Any]:
     resp = requests.post(
@@ -158,7 +151,7 @@ def build_user_prompt(step: int, observation: Dict[str, Any], history: List[str]
         half = 2800
         protocol_text = protocol_text[:half] + "\n\n[... truncated ...]\n\n" + protocol_text[-half:]
 
-   issues_str = ""
+    issues_str = ""
     if identified:
         issues_str = "\n⚠️ ISSUES ALREADY IDENTIFIED (DO NOT REPEAT THESE):\n"
         for i, iss in enumerate(identified, 1):
