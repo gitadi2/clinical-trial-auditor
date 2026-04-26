@@ -1,0 +1,30 @@
+name: clinical_trial_auditor
+version: "1.0.0"
+description: >
+  An OpenEnv environment where AI agents audit clinical trial protocols for
+  compliance issues, missing sections, statistical errors, and regulatory
+  violations.
+author: Aditya Satapathy
+license: MIT
+environment:
+  type: text
+  framework: fastapi
+  port: 7860
+tasks:
+  - id: section_completeness
+    name: Section Completeness Check
+    difficulty: easy
+    max_steps: 10
+  - id: eligibility_validation
+    name: Eligibility Criteria Validation
+    difficulty: medium
+    max_steps: 12
+  - id: full_protocol_audit
+    name: Full Protocol Audit
+    difficulty: hard
+    max_steps: 15
+tags:
+  - openenv
+  - clinical-trials
+  - protocol-audit
+  - healthcare
