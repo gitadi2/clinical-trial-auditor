@@ -94,10 +94,10 @@ After GRPO training, the agent's score improved across all three tasks:
 
 | Task | Baseline | After Training | Improvement |
 |------|----------|----------------|-------------|
-| Section Completeness (Easy) | 0.32 | 0.58 | **+81%** |
-| Eligibility Validation (Medium) | 0.21 | 0.41 | **+95%** |
-| Full Protocol Audit (Hard) | 0.14 | 0.29 | **+107%** |
-| **Overall** | **0.22** | **0.43** | **+95%** |
+| Section Completeness (Easy) | 0.100 | 0.100 | **+0.000** |
+| Eligibility Validation (Medium) | 0.403 | 0.456 | **+0.053** |
+| Full Protocol Audit (Hard) | 0.429 | 0.430 | **+0.001** |
+| **Overall** | **0.311** | **0.329** | **+0.018%** |
 
 The agent did not just memorize keywords — it learned the audit *workflow*. After training, it consistently performs `request_section` calls before `identify_issue` calls on uncertain sections, mirroring how a real Clinical Research Associate works.
 
